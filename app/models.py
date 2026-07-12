@@ -25,7 +25,7 @@ class Appointment(Base):
     __tablename__ = "appointments"
 
     id = Column(Integer, primary_key=True, index=True)
-    doctor_id = Column(Integer, ForeignKey("doctors.id", on_delete="CASCADE"), nullable=False)
+    doctor_id = Column(Integer, ForeignKey("doctors.id", ondelete="CASCADE"), nullable=False)
     patient_id = Column(Integer, nullable=False, index=True)
     
     # Crucial: Enforced explicitly as DateTime with Timezone (TIMESTAMPTZ in Postgres)
@@ -50,6 +50,7 @@ class Appointment(Base):
             "doctor_id",
             "slot_time",
             unique=True,
-            postgresql_where=text("status != 'CANCELLED'")
+            postgresql_where=text("status != 'CANCELLED'"),
+            sqlite_where=text("status != 'CANCELLED'"),
         ),
     )
