@@ -1,32 +1,6 @@
-from datetime import datetime, time, timedelta, timezone
+from datetime import datetime, time, timezone
 from typing import Optional, List
 from pydantic import BaseModel, EmailStr, Field, field_validator
-
-
-def validate_bookable_slot(slot_time: datetime) -> datetime:
-    """Normalize a slot to UTC and enforce the minimum booking lead time."""
-    if slot_time.tzinfo is None:
-        slot_time = slot_time.replace(tzinfo=timezone.utc)
-    else:
-        slot_time = slot_time.astimezone(timezone.utc)
-
-    now = datetime.now(timezone.utc)
-    if slot_time < now:
-        raise ValueError("Appointment slot cannot be scheduled in the past.")
-
-    if slot_time < now + timedelta(hours=1):
-        raise ValueError("Appointments must be booked at least 1 hour in advance.")
-
-    if (
-        slot_time.minute not in (0, 30)
-        or slot_time.second != 0
-        or slot_time.microsecond != 0
-    ):
-        raise ValueError(
-            "Appointments must be aligned precisely to a 30-minute block (e.g., :00 or :30)."
-        )
-
-    return slot_time
 
 
 # 1. DOCTOR SCHEMAS
@@ -42,7 +16,7 @@ class DoctorCreate(DoctorBase):
     Used ONLY when registering a doctor. Contains highly sensitive PII fields.
     """
     email: EmailStr
-    personal_phone: str = Field(..., max_length=20)
+    personal_phone: str = Field(..., max_length=20, examples=["+254712345678"])
 
 
 class DoctorPublic(DoctorBase):
@@ -62,7 +36,8 @@ class AppointmentBase(BaseModel):
     doctor_id: int
     slot_time: datetime = Field(
         ..., 
-        description="Desired slot. Must be an explicitly UTC-localized ISO timestamp."
+        description="Desired slot. Must be an explicitly UTC-localized ISO timestamp.",
+        examples=["2026-07-15T10:30:00Z"]
     )
 
 
@@ -72,23 +47,62 @@ class AppointmentCreate(AppointmentBase):
     @field_validator("slot_time")
     @classmethod
     def validate_slot_rules(cls, v: datetime) -> datetime:
-        return validate_bookable_slot(v)
+        # 1. Force conversion or verification of UTC zone to avoid offset mismatch crashes
+        if v.tzinfo is None:
+            v = v.replace(tzinfo=timezone.utc)
+        else:
+            v = v.astimezone(timezone.utc)
 
+        # Grab current time explicitly in UTC format
+        current_time = datetime.now(timezone.utc)
 
-class AppointmentRescheduleRequest(BaseModel):
-    new_slot_time: datetime = Field(
-        ...,
-        description="Replacement slot, as an ISO 8601 timestamp.",
-    )
+        # 2. Core Validation: Ensure the appointment slot is not in the past
+        if v < current_time:
+            raise ValueError("Appointment slot cannot be scheduled in the past.")
 
-    @field_validator("new_slot_time")
-    @classmethod
-    def validate_new_slot_rules(cls, v: datetime) -> datetime:
-        return validate_bookable_slot(v)
+        # 3. Bonus Validation: Prevention of bookings within 1 hour of now
+        time_difference = v - current_time
+        if time_difference.total_seconds() < 3600:
+            raise ValueError("Appointments must be booked at least 1 hour in advance.")
+
+        # 4. Strict Grid Constraint: Enforce fixed 30-minute clinic slots[cite: 1]
+        if v.minute not in (0, 30) or v.second != 0 or v.microsecond != 0:
+            raise ValueError("Appointments must be aligned precisely to a 30-minute block (e.g., :00 or :30).")
+
+        return v
 
 
 class AppointmentCancelRequest(BaseModel):
     reason: str = Field(..., min_length=5, description="Reason required for tracking cancellations.")
+
+
+class AppointmentRescheduleRequest(BaseModel):
+    """
+    Explicit schema for handling rescheduling requests.
+    Enforces identical safety checks as a fresh booking before database processing[cite: 1].
+    """
+    new_slot_time: datetime = Field(..., description="Target slot time in UTC format.")
+
+    @field_validator("new_slot_time")
+    @classmethod
+    def validate_reschedule_slot(cls, v: datetime) -> datetime:
+        if v.tzinfo is None:
+            v = v.replace(tzinfo=timezone.utc)
+        else:
+            v = v.astimezone(timezone.utc)
+
+        current_time = datetime.now(timezone.utc)
+
+        if v < current_time:
+            raise ValueError("The target rescheduling slot cannot be in the past.")
+            
+        if (v - current_time).total_seconds() < 3600:
+            raise ValueError("Rescheduled appointments must be locked in at least 1 hour in advance.")
+            
+        if v.minute not in (0, 30) or v.second != 0 or v.microsecond != 0:
+            raise ValueError("Rescheduled appointments must match a precise 30-minute block.")
+            
+        return v
 
 
 class AppointmentResponse(BaseModel):
@@ -108,6 +122,7 @@ class AppointmentResponse(BaseModel):
 
 
 # 3. AVAILABILITY SCHEMAS
+
 
 class AvailabilityResponse(BaseModel):
     date: str
