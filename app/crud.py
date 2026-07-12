@@ -1,4 +1,4 @@
-from datetime import datetime, date, timedelta, time
+from datetime import datetime, date, timedelta, time, timezone
 from typing import List, Set
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
@@ -115,3 +115,18 @@ def book_appointment(db: Session, obj_in: schema.AppointmentCreate) -> models.Ap
     db.refresh(db_appointment)
     
     return db_appointment
+
+def get_upcoming_patient_appointments(db: Session, patient_id: int) -> List[models.Appointment]:
+    """
+    Retrieves all active upcoming appointments for a specific patient.
+    Enforces the bonus condition: only returns appointments scheduled at least 1 hour from now,
+    sorted sequentially by date and time.
+    """
+    # Define our 1-hour safety baseline in UTC
+    one_hour_from_now = datetime.now(timezone.utc) + timedelta(hours=1)
+
+    return db.query(models.Appointment).filter(
+        models.Appointment.patient_id == patient_id,
+        models.Appointment.status != "CANCELLED",
+        models.Appointment.slot_time >= one_hour_from_now  # Enforces the 1-hour booking horizon protection
+    ).order_by(models.Appointment.slot_time.asc()).all()

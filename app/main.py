@@ -8,8 +8,29 @@ from fastapi.exceptions import RequestValidationError
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
-from .database import engine, Base, get_db
+from .database import engine, Base, get_db, SessionLocal
 from . import models, schema, crud
+from .seed import seed_clinic_doctors
+from contextlib import asynccontextmanager
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # 1. Ensure tables are built
+    Base.metadata.create_all(bind=engine)
+    # 2. Open a session and automatically seed the 5 doctors
+    db = SessionLocal()
+    try:
+        seed_clinic_doctors(db)
+    finally:
+        db.close()
+    yield
+
+app = FastAPI(
+    title="Clinic Appointment Booking API",
+    version="1.0.0",
+    description="An optimized, high-concurrency healthcare slot scheduler.",
+    lifespan=lifespan  # Enforces execution of the database seeding on app startup
+)
 
 # Setup structured logging to capture hidden exceptions safely
 logging.basicConfig(level=logging.INFO)
@@ -189,3 +210,22 @@ def reschedule_appointment(id: int, payload: schema.AppointmentRescheduleRequest
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="The requested new slot was taken by a concurrent operation[cite: 1]."
         )
+    
+
+@app.get(
+    "/patients/{id}/appointments", 
+    response_model=schema.PatientAppointmentsResponse,
+    status_code=status.HTTP_200_OK
+)
+def get_patient_appointments(id: int, db: Session = Depends(get_db)):
+    """
+    Returns all upcoming appointments for a given patient sorted by date.
+    Appointments falling within 1 hour of the current time are automatically filtered out.
+    """
+    # Fetch filtered data from our database operations layer
+    appointments = crud.get_upcoming_patient_appointments(db=db, patient_id=id)
+    
+    return {
+        "patient_id": id,
+        "upcoming_appointments": appointments
+    }

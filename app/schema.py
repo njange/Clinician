@@ -131,3 +131,10 @@ class AvailabilityResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+class PatientAppointmentsResponse(BaseModel):
+    patient_id: int
+    upcoming_appointments: List[AppointmentResponse]
+
+    class Config:
+        from_attributes = True
