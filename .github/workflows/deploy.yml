@@ -39,6 +39,10 @@ jobs:
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
 
+      - name: Enable Required Google Cloud APIs
+        run: |
+            gcloud services enable run.googleapis.com sqladmin.googleapis.com
+
       # 1. Configure Docker to authenticate against the Frankfurt Registry
       - name: Configure Docker for GCP
         run: gcloud auth configure-docker europe-west3-docker.pkg.dev
