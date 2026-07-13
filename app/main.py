@@ -38,6 +38,14 @@ app = FastAPI(
     lifespan=lifespan  # Enforces execution of the database seeding on app startup
 )
 
+@app.get("/", tags=["Root"])
+def root():
+    return {
+        "message": "Clinic Appointment Booking API",
+        "status": "healthy",
+        "docs": "/docs",
+    }
+
 # Setup structured logging to capture hidden exceptions safely
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
