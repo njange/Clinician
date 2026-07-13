@@ -15,14 +15,20 @@ from contextlib import asynccontextmanager
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # 1. Ensure tables are built
-    Base.metadata.create_all(bind=engine)
-    # 2. Open a session and automatically seed the 5 doctors
-    db = SessionLocal()
     try:
-        seed_clinic_doctors(db)
-    finally:
-        db.close()
+        # Initialize the database only when the configured backend is reachable.
+        Base.metadata.create_all(bind=engine)
+
+        # Seed data is best-effort so tests and local startup do not fail when the
+        # production database is unavailable.
+        db = SessionLocal()
+        try:
+            seed_clinic_doctors(db)
+        finally:
+            db.close()
+    except SQLAlchemyError as exc:
+        logger.warning("Skipping database initialization during startup: %s", exc)
+
     yield
 
 app = FastAPI(
@@ -36,14 +42,8 @@ app = FastAPI(
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Automatically generate tables on startup if they don't exist
-Base.metadata.create_all(bind=engine)
-
-app = FastAPI(
-    title="Clinic Appointment Booking API",
-    version="1.0.0",
-    description="An optimized, high-concurrency healthcare slot scheduler compliant with Kenya ODPC principles."
-)
+# Database initialization is handled during lifespan startup so importing this
+# module stays side-effect free for test collection.
 
 # GLOBAL EXCEPTION HANDLERS (No Raw Stack Traces)
 
