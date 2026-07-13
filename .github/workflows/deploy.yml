@@ -61,5 +61,6 @@ jobs:
             --region=europe-west3 \
             --platform=managed \
             --allow-unauthenticated \
+            --service-account=savannah@${{ secrets.GCP_PROJECT_ID }}.iam.gserviceaccount.com \
             --add-cloudsql-instances=${{ secrets.GCP_PROJECT_ID }}:europe-west3:clinic-db \
             --set-env-vars="DATABASE_URL=postgresql://postgres:${{ secrets.DB_PASSWORD }}@/clinic_db?host=/cloudsql/${{ secrets.GCP_PROJECT_ID }}:europe-west3:clinic-db"
