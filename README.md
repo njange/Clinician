@@ -2,6 +2,46 @@
 
 A FastAPI and PostgreSQL service for discovering, booking, cancelling, and rescheduling doctor appointments. The system uses fixed 30-minute appointment slots and prioritizes data consistency, privacy, and protection against double-booking.
 
+## Live Production Access
+*   **Production API Gateway:** `https://clinic-backend-421781141134.europe-west3.run.app`
+*   **Interactive API Docs (Swagger):** `https://clinic-backend-421781141134.europe-west3.run.app/docs`
+
+## Deployment
+
+### Deployment Branch
+
+The application is deployed automatically from the **main** branch.
+
+### Deployment Process
+
+Whenever changes are pushed or merged into the `main` branch:
+
+1. GitHub Actions is triggered.
+2. Dependencies are installed.
+3. The application is built.
+4. Automated tests are executed.
+5. If all checks pass, the application is deployed to the GCP.
+
+---
+
+## CI/CD Pipeline
+
+The pipeline automates the software delivery process by:
+
+- Checking out the repository.
+- Installing project dependencies.
+- Running linting checks.
+- Running automated tests.
+- Building the application.
+- Deploying the latest successful build.
+- Preventing deployments when tests fail.
+
+This ensures every deployment is based on verified, production-ready code.
+
+---
+
+# Project Overview
+
 ## Goals
 
 - Show a doctor's available 30-minute slots for a selected day.
@@ -11,24 +51,79 @@ A FastAPI and PostgreSQL service for discovering, booking, cancelling, and resch
 - Return a patient's upcoming appointments.
 - Keep sensitive patient and provider information out of public API responses.
 
+# Technologies Used
+
+- Git
+- GitHub
+- GitHub Actions
+- Docker
+- FastAPI
+- GCP
+- PostgreSQL
+
+---
+
 ## Architecture
 
 The application follows a simple monolithic layered design:
 
 ```text
-Client
-  | HTTPS
+Client (Postman)
+  | HTTPS Request
   v
-FastAPI application
-  |- API routers: request handling and Pydantic response schemas
-  |- Services: validation and booking rules
-  `- Data access: SQLAlchemy queries and transactions
+FastAPI Presentation Layer
+  |- API Routers: Enforces HTTP request parsing and structural input validation
+  |- Pydantic Schemas: Sanitizes data shapes and guarantees strict output security
   |
   v
-PostgreSQL
-```
+Services Layer (Business Logic Engine)
+  |- Implements scheduling rules, cut-off windows, and multi-step state checks
+  |
+  v
+Data Access Layer (SQLAlchemy ORM)
+  |- Executes explicit database queries, maps model classes, and manages transactions
+  |
+  v
+PostgreSQL Database (Source of Truth)
 
 PostgreSQL is the source of truth for appointment state. Appointment timestamps are stored as `TIMESTAMPTZ` and handled in UTC.
+
+## Running the Project Locally
+
+Follow these sequential steps to establish your local runtime workspace, compile dependencies, configure your local database instance, and execute the service.
+
+### Prerequisites
+Ensure your machine has the following foundational system components installed:
+*   **Python:** Version `3.11` or newer.
+*   **PostgreSQL Engine:** Version `14` or newer, actively running and accepting local connections.
+
+---
+
+## Clone the repository
+
+```bash
+git clone https://github.com/njange/Clinician.git
+```
+
+## Navigate into the project
+
+```bash
+cd Clinician
+
+```bash
+# Initialize local Python environment wrapper
+python -m venv venv
+
+# Activate the virtual workspace environment
+# On Linux/macOS systems:
+source venv/bin/activate
+# On Windows PowerShell terminals:
+.\venv\Scripts\Activate.ps1
+
+# Upgrade package installer and compile project dependencies
+pip install --upgrade pip
+pip install -r requirements.txt
+
 
 ## Planned API
 
@@ -41,127 +136,214 @@ PostgreSQL is the source of truth for appointment state. Appointment timestamps 
 | `GET` | `/patients/{id}/appointments/upcoming` | Retrieve a patient's upcoming appointments. |
 | `GET` | `/health` | Report service and database health. |
 
-## Core Rules
+# AI Usage Documentation
 
-- Every appointment occupies one fixed 30-minute slot.
-- A requested slot must fall within the doctor's configured working hours.
-- A booking must be at least one hour in the future.
-- Cancelled appointments cannot be cancelled again.
-- Availability is calculated dynamically: working-hour slots minus active bookings.
-- Existing appointments remain valid if a doctor's working hours later change; only future availability is affected.
+## 1. What did you use AI for across the four sections?
 
-## Preventing Double Bookings
+AI was used as a development assistant throughout the project in the following ways:
 
-Application checks improve the user experience, but the database provides the final concurrency guarantee. PostgreSQL enforces one active appointment per doctor and time slot with a partial unique index:
+### Planning
 
-```sql
-CREATE UNIQUE INDEX idx_unique_active_doctor_slot
-ON appointments (doctor_id, slot_time)
-WHERE status != 'CANCELLED';
-```
+- Breaking down project requirements.
+- Understanding the CI/CD workflow.
+- Explaining GitHub Actions concepts.
+- Generating implementation ideas and design.
 
-If two requests try to reserve the same slot at nearly the same time, only one can succeed. The application should translate the resulting unique-constraint violation into a clear conflict response (for example, HTTP `409`).
+### Development
 
-Rescheduling is performed in a single database transaction:
+- Debugging build and deployment issues.
+- Explaining error messages.
+- Suggesting improvements to project structure.
+- Assisting with GitHub Actions workflow configuration.
 
-1. Lock the existing appointment row with `SELECT ... FOR UPDATE`.
-2. Validate the requested slot.
-3. Mark the old appointment cancelled and create the replacement appointment.
-4. Commit only if every operation succeeds; otherwise roll back and keep the original appointment.
+### Documentation
 
-## Data Model
+- Improving README formatting.
+- Writing project documentation.
+- Organizing setup instructions.
+- Improving clarity and readability.
 
-### `doctors`
+### Testing and Debugging
 
-| Field | Notes |
-| --- | --- |
-| `id` | Primary key |
-| `full_name` | Provider name |
-| `email` | Private provider contact data |
-| `personal_phone` | Private provider contact data |
-| `work_start`, `work_end` | Daily appointment boundaries |
-
-### `appointments`
-
-| Field | Notes |
-| --- | --- |
-| `id` | Primary key |
-| `doctor_id` | Foreign key to `doctors` |
-| `patient_id` | Patient identifier |
-| `slot_time` | UTC appointment start time (`TIMESTAMPTZ`) |
-| `status` | Appointment state, including `CANCELLED` |
-| `cancellation_reason` | Required when cancelling |
-
-## Privacy and Security
-
-This service is designed with Kenya ODPC data-protection expectations in mind:
-
-- Use separate ORM models and public Pydantic response schemas.
-- Never expose provider email addresses, phone numbers, patient identifiers, or other unnecessary PII in public payloads.
-- Keep secrets in environment variables or a managed secret store; do not commit them.
-- Use a least-privilege database account for the application.
-- Use structured logs with request context, while excluding patient names and identifiers.
-- Serve the API over HTTPS in deployed environments.
-
-## Local Development
-
-### Prerequisites
-
-- Python 3.11+
-- PostgreSQL 14+
-
-### Install dependencies
-
-```bash
-python -m venv venv
-venv\Scripts\activate
-pip install -r requirements.txt
-```
-
-### Configure the database
-
-Set a `DATABASE_URL` environment variable for a PostgreSQL database, for example:
-
-```text
-postgresql+psycopg2://<user>:<password>@localhost:5432/clinic
-```
-
-Create the database schema and the active-slot unique index before accepting booking traffic.
-
-##  API Validation & Live Testing (Postman Verification)
-
-The transactional workflows and scheduling constraints have been rigorously validated against the live Cloud Run production gateway using Postman. To adhere to data privacy expectations (such as Kenya ODPC guidelines), all response bodies strictly exclude sensitive Personally Identifiable Information (PII) like patient phone numbers or provider emails.
-
-### 1. Dynamic Availability Discovery (`GET /doctors/{id}/availability`)
-*   **Validation Rule:** Calculates unbooked 30-minute intervals dynamically by subtracting active reservations from the doctor's configured working hours.
-*   **Behavior Check:** Slots already claimed vanish from this payload in real time.
-
-![Postman - Doctor Availability](assets/availabile_slots.png)
-
-### 2. Secure Appointment Booking (`POST /appointments`)
-*   **Validation Rule:** Enforces that a slot falls inside working hours, is perfectly aligned to a 30-minute block, is not already taken, and respects the **1-hour future cutoff bonus constraint** to prevent short-notice scheduling.
-*   **Behavior Check:** Yields an HTTP `201 Created` status with a sanitized response tracking only the scheduling tokens.
-
-![Postman - Book Appointment](assets/appointments.png)
-
-### 3. Immediate Slot Reclaim via Cancellation (`PATCH /appointments/{id}/cancel`)
-*   **Validation Rule:** Requires a structured `cancellation_reason`. It flags the record state as `CANCELLED`, rendering the 30-minute block instantly bookable by other patients. 
-*   **Idempotency Check:** Attempting to cancel an already cancelled appointment terminates early and returns a meaningful error code (`HTTP 400 Bad Request`).
-
-![Postman - Cancel Appointment](assets/cancel_appointment.png)
-
-### 4. Atomic Rescheduling Transaction (`PATCH /appointments/{id}/reschedule`)
-*   **Validation Rule:** Executes within an isolated database transaction block (`SELECT ... FOR UPDATE`). It verifies the new target slot using the identical criteria as a fresh booking, updates the old slot back to a bookable pool, and builds the new reservation atomically.
-*   **Safety Check:** If the original appointment was previously cancelled, the engine denies the patch request immediately.
-
-![Postman - Reschedule Appointment](assets/reschedule_appointments.png)
-
-### 5. Patient-Centric Timeline Agenda (`GET /patients/{id}/appointments/upcoming`)
-*   **Validation Rule:** Pulls the specific patient portfolio, applies a chronological filter matching the current UTC timeline (`slot_time >= NOW()`), and sorts the outcome strictly by ascending date order.
-
-![Postman - Patient Upcoming Appointments](assets/upcoming_appointments.png)
+- Explaining failing test results.
+- Suggesting possible fixes.
+- Helping identify configuration mistakes.
+- Recommending debugging steps.
 
 ---
+
+## 2. One example where an AI suggestion improved the project
+
+One useful AI suggestion was improving the GitHub Actions workflow by ensuring that automated tests run before deployment.
+
+### Prompt used
+
+> "Help me create a GitHub Actions workflow that installs dependencies, runs tests, builds the application, and deploys only if all steps succeed."
+
+The generated workflow provided a strong starting point that reduced setup time and ensured deployments only occur after successful validation.
+
+---
+
+## 3. One example where AI was wrong or incomplete
+
+AI initially suggested a deployment configuration that omitted some required environment variables for the hosting platform.
+
+This resulted in deployment failures.
+
+The issue was identified by:
+
+- Reading the deployment logs.
+- Comparing the suggested configuration with the hosting platform documentation.
+- Updating the missing environment variables manually.
+
+This demonstrated the importance of verifying AI-generated configurations instead of accepting them without testing.
+
+---
+
+## 4. Two decisions made without AI
+
+### Decision 1
+
+I decided on the repository structure and folder organization based on my understanding of the project requirements and standard development practices.
+
+I trusted my own judgment because I wanted the structure to remain consistent with previous projects and easy to maintain.
+
+### Decision 2
+
+I chose the branching strategy by using the `main` branch as the deployment branch and creating feature branches for development.
+
+I trusted my judgment because this follows common Git workflows and simplifies continuous deployment while keeping production code stable.
+
+---
+
+# Lessons Learned
+
+During this project I learned:
+
+- How GitHub Actions automates software delivery.
+- The importance of automated testing before deployment.
+- How continuous deployment reduces manual work.
+- That AI is most effective as a development assistant rather than a replacement for testing and verification.
+- The value of reading logs and official documentation when troubleshooting deployment issues.
+
+---
+
+# Future Improvements
+
+Potential future enhancements include:
+
+- Increased automated test coverage.
+- Code quality analysis using static analysis tools.
+- Security scanning in the CI pipeline.
+- Preview deployments for pull requests.
+- Performance monitoring after deployment.
+
+---
+
+
+## 🧪 API Validation & Live Testing (Postman)
+
+All API endpoints were validated against the live Cloud Run deployment using **Postman**. The tests verify the application's scheduling logic, transactional integrity, and business rules. To comply with data privacy requirements (including Kenya's ODPC guidelines), API responses exclude sensitive Personally Identifiable Information (PII) such as patient phone numbers and provider email addresses.
+
+### 1. Doctor Availability (`GET /doctors/{id}/availability`)
+
+**Purpose**
+
+Returns all available 30-minute appointment slots for a doctor.
+
+**Validation**
+
+- Calculates available slots from the doctor's configured working hours.
+- Excludes time slots that already have active appointments.
+- Updates availability in real time after bookings or cancellations.
+
+![Doctor Availability](assets/availabile_slots.png)
+
+---
+
+### 2. Book Appointment (`POST /appointments`)
+
+**Purpose**
+
+Creates a new appointment if the requested slot satisfies all scheduling rules.
+
+**Validation**
+
+- Appointment must fall within the doctor's working hours.
+- Time must align to a 30-minute interval.
+- Slot must not already be booked.
+- Appointment must be at least one hour in the future.
+- Returns **HTTP 201 Created** on success.
+
+![Book Appointment](assets/appointments.png)
+
+---
+
+### 3. Cancel Appointment (`PATCH /appointments/{id}/cancel`)
+
+**Purpose**
+
+Cancels an existing appointment and immediately releases the slot for future bookings.
+
+**Validation**
+
+- Requires a valid `cancellation_reason`.
+- Changes appointment status to `CANCELLED`.
+- Makes the slot immediately available again.
+- Prevents duplicate cancellations by returning **HTTP 400 Bad Request** for already cancelled appointments.
+
+![Cancel Appointment](assets/cancel_appointment.png)
+
+---
+
+### 4. Reschedule Appointment (`PATCH /appointments/{id}/reschedule`)
+
+**Purpose**
+
+Moves an appointment to a different available time slot.
+
+**Validation**
+
+- Executes within a database transaction to ensure atomicity.
+- Locks the appointment record during the operation (`SELECT ... FOR UPDATE`).
+- Validates the new slot using the same rules as appointment creation.
+- Releases the original slot only after the new booking succeeds.
+- Rejects requests for appointments that have already been cancelled.
+
+![Reschedule Appointment](assets/reschedule_appointments.png)
+
+---
+
+### 5. Upcoming Patient Appointments (`GET /patients/{id}/appointments/upcoming`)
+
+**Purpose**
+
+Retrieves all future appointments for a patient.
+
+**Validation**
+
+- Returns appointments scheduled on or after the current UTC time.
+- Orders results chronologically (earliest first).
+- Returns only appointments belonging to the requested patient.
+
+![Upcoming Appointments](assets/upcoming_appointments.png)
+
+---
+
+### Summary
+
+The API testing confirms that the application correctly enforces:
+
+- Dynamic doctor availability
+- Prevention of double bookings
+- Working-hour scheduling constraints
+- 30-minute appointment intervals
+- One-hour advance booking requirement
+- Transaction-safe appointment rescheduling
+- Immediate slot recovery after cancellation
+- Chronological retrieval of upcoming appointments
+- Privacy-conscious API responses that exclude sensitive PII
+
 
 ##  Error Validation & Structured Status Handling
 
@@ -175,55 +357,3 @@ The application maps engine anomalies to contextual HTTP status layers with clea
 | **Out of Bound Hours** | `400 Bad Request` | `"Requested slot time falls outside of the doctor's configured working hours."` |
 | **Mutating a Cancelled Record** | `400 Bad Request` | `"Cannot reschedule/cancel an appointment that is already CANCELLED."` |
 
-# Clinic Appointment Booking API
-
-An optimized, high-concurrency healthcare slot scheduler built with FastAPI, SQLAlchemy, and PostgreSQL. The application features an automated, zero-downtime CI/CD engine deployed to Google Cloud Run in the Frankfurt (`europe-west3`) region.
-
-## 🚀 Live Application URL
-*   **Production API Gateway:** `https://clinic-backend-421781141134.europe-west3.run.app/`  *(Replace with your live URL)*
-*   **Interactive API Docs (Swagger):** `https://clinic-backend-421781141134.europe-west3.run.app//docs`
-
----
-
-## 🛠️ Architecture & Deployment Choices
-
-### 🌍 Regional Infrastructure (Frankfurt)
-The application architecture is explicitly constrained to the **Frankfurt (`europe-west3`)** geographical zone. 
-*   **Data Sovereignty & Compliance:** Processing healthcare booking markers locally keeps execution within strict regional parameters.
-*   **Sub-Millisecond Performance:** Co-locating the stateless Cloud Run container and the managed Cloud SQL PostgreSQL instances within the same zone allows communication over local Unix sockets, bypassing external internet routing latency.
-
-### 🧪 Robust Test Isolation & Lifespan Architecture
-*   **Global State Separation:** Database initializations (`create_all`) are shifted safely out of the global module import loop and into an isolated FastAPI `lifespan` hook. This ensures that unit tests can safely substitute connection engines without triggering connection attempts to production.
-*   **Mocking Time-Dependent Rules:** To ensure assertions around scheduling blocks remain stable across time zones and variable network speeds, dynamic runtime checks are isolated using deterministic time offsets, eliminating CI/CD pipeline flakiness.
-
----
-
-## 🤖 CI/CD Pipeline Workflow Runs
-
-Our automated delivery engine runs through GitHub Actions on every change committed to the `main` branch.
-
-### Pipeline Stages
-1. **Test Suite:** Initializes a clean Python runtime environment, installs dependency schemas, and executes the full validation testing matrix using `pytest`.
-2. **Authentication:** Authenticates securely against Google Cloud Platform using an IAM service account identity wrapper.
-3. **Containerization:** Compiles the application layer into a lean Docker image and publishes it to the regional **GCP Artifact Registry**.
-4. **Continuous Deployment:** Smoothly hands off the freshly published image to **Cloud Run**, establishing automated database socket proxies and secret environment variables dynamically.
-
-### How to Run Tests Locally
-```bash
-# Install testing dependencies
-pip install -r requirements.txt pytest httpx
-
-# Execute test matrix
-python -m pytest
-
-## Technology
-
-- FastAPI
-- Pydantic
-- SQLAlchemy
-- PostgreSQL with `psycopg2`
-- Pytest
-
-## Testing Focus
-
-Key tests should cover slot-grid generation, working-hour boundaries, one-hour booking cut-off, cancellation and rescheduling rollback, public-schema PII exclusion, and concurrent attempts to book the same doctor and slot.
