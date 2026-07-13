@@ -1,10 +1,122 @@
 # Clinic Appointment Booking System
 
+![Python](https://img.shields.io/badge/Python-3.11-blue)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.115-green)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-17-blue)
+![Docker](https://img.shields.io/badge/Docker-Ready-2496ED)
+![License](https://img.shields.io/badge/License-MIT-yellow)
+![CI](https://github.com/njange/Clinician/actions/workflows/ci.yml/badge.svg)
+
 A FastAPI and PostgreSQL service for discovering, booking, cancelling, and rescheduling doctor appointments. The system uses fixed 30-minute appointment slots and prioritizes data consistency, privacy, and protection against double-booking.
 
 ## Live Production Access
-*   **Production API Gateway:** `https://clinic-backend-421781141134.europe-west3.run.app`
-*   **Interactive API Docs (Swagger):** `https://clinic-backend-421781141134.europe-west3.run.app/docs`
+- **Production API:** https://clinic-backend-421781141134.europe-west3.run.app
+
+- **Swagger Documentation:** https://clinic-backend-421781141134.europe-west3.run.app/docs
+
+## Architecture
+
+The application follows a simple monolithic layered design:
+
+```text
+Client (Postman)
+  | HTTPS Request
+  v
+FastAPI Presentation Layer
+  |- API Routers: Enforces HTTP request parsing and structural input validation
+  |- Pydantic Schemas: Sanitizes data shapes and guarantees strict output security
+  |
+  v
+Services Layer (Business Logic Engine)
+  |- Implements scheduling rules, cut-off windows, and multi-step state checks
+  |
+  v
+Data Access Layer (SQLAlchemy ORM)
+  |- Executes explicit database queries, maps model classes, and manages transactions
+  |
+  v
+PostgreSQL Database (Source of Truth)
+
+PostgreSQL is the source of truth for appointment state. Appointment timestamps are stored as `TIMESTAMPTZ` and handled in UTC.
+
+## Running the Project Locally
+
+Follow these sequential steps to establish your local runtime workspace, compile dependencies, configure your local database instance, and execute the service.
+
+## Features
+
+- View doctor availability
+- Book appointments
+- Cancel appointments
+- Reschedule appointments
+- Prevent double booking
+- Enforce one-hour booking cutoff
+- Real-time slot availability
+- Transaction-safe scheduling
+- PostgreSQL-backed persistence
+- REST API with OpenAPI documentation
+
+# Technologies Used
+
+- Git
+- GitHub
+- GitHub Actions
+- Docker
+- FastAPI
+- GCP
+- PostgreSQL
+
+---
+
+## Running the Project Locally
+
+Follow these sequential steps to establish your local runtime workspace, compile dependencies, configure your local database instance, and execute the service.
+
+### Prerequisites
+Ensure your machine has the following foundational system components installed:
+*   **Python:** Version `3.11` or newer.
+*   **PostgreSQL Engine:** Version `14` or newer, actively running and accepting local connections.
+
+---
+
+## Clone the repository
+
+```bash
+git clone https://github.com/njange/Clinician.git
+```
+
+## Navigate into the project
+
+```bash
+cd Clinician
+```
+
+## Create a virtual environment
+
+```bash
+python -m venv venv
+```
+
+## Activate the virtual environment
+
+**Linux/macOS**
+
+```bash
+source venv/bin/activate
+```
+
+**Windows (PowerShell)**
+
+```powershell
+.\venv\Scripts\Activate.ps1
+```
+
+## Install dependencies
+
+```bash
+pip install --upgrade pip
+pip install -r requirements.txt
+```
 
 ## Deployment
 
@@ -40,92 +152,7 @@ This ensures every deployment is based on verified, production-ready code.
 
 ---
 
-# Project Overview
-
-## Goals
-
-- Show a doctor's available 30-minute slots for a selected day.
-- Book, cancel, and reschedule appointments safely.
-- Prevent bookings less than one hour before the appointment time.
-- Make cancelled slots available immediately.
-- Return a patient's upcoming appointments.
-- Keep sensitive patient and provider information out of public API responses.
-
-# Technologies Used
-
-- Git
-- GitHub
-- GitHub Actions
-- Docker
-- FastAPI
-- GCP
-- PostgreSQL
-
----
-
-## Architecture
-
-The application follows a simple monolithic layered design:
-
-```text
-Client (Postman)
-  | HTTPS Request
-  v
-FastAPI Presentation Layer
-  |- API Routers: Enforces HTTP request parsing and structural input validation
-  |- Pydantic Schemas: Sanitizes data shapes and guarantees strict output security
-  |
-  v
-Services Layer (Business Logic Engine)
-  |- Implements scheduling rules, cut-off windows, and multi-step state checks
-  |
-  v
-Data Access Layer (SQLAlchemy ORM)
-  |- Executes explicit database queries, maps model classes, and manages transactions
-  |
-  v
-PostgreSQL Database (Source of Truth)
-
-PostgreSQL is the source of truth for appointment state. Appointment timestamps are stored as `TIMESTAMPTZ` and handled in UTC.
-
-## Running the Project Locally
-
-Follow these sequential steps to establish your local runtime workspace, compile dependencies, configure your local database instance, and execute the service.
-
-### Prerequisites
-Ensure your machine has the following foundational system components installed:
-*   **Python:** Version `3.11` or newer.
-*   **PostgreSQL Engine:** Version `14` or newer, actively running and accepting local connections.
-
----
-
-## Clone the repository
-
-```bash
-git clone https://github.com/njange/Clinician.git
-```
-
-## Navigate into the project
-
-```bash
-cd Clinician
-
-```bash
-# Initialize local Python environment wrapper
-python -m venv venv
-
-# Activate the virtual workspace environment
-# On Linux/macOS systems:
-source venv/bin/activate
-# On Windows PowerShell terminals:
-.\venv\Scripts\Activate.ps1
-
-# Upgrade package installer and compile project dependencies
-pip install --upgrade pip
-pip install -r requirements.txt
-
-
-## Planned API
+## API Endpoints
 
 | Method | Path | Purpose |
 | --- | --- | --- |
@@ -135,110 +162,6 @@ pip install -r requirements.txt
 | `PATCH` | `/appointments/{id}/reschedule` | Atomically move an appointment to a new eligible slot. |
 | `GET` | `/patients/{id}/appointments/upcoming` | Retrieve a patient's upcoming appointments. |
 | `GET` | `/health` | Report service and database health. |
-
-# AI Usage Documentation
-
-## 1. What did you use AI for across the four sections?
-
-AI was used as a development assistant throughout the project in the following ways:
-
-### Planning
-
-- Breaking down project requirements.
-- Understanding the CI/CD workflow.
-- Explaining GitHub Actions concepts.
-- Generating implementation ideas and design.
-
-### Development
-
-- Debugging build and deployment issues.
-- Explaining error messages.
-- Suggesting improvements to project structure.
-- Assisting with GitHub Actions workflow configuration.
-
-### Documentation
-
-- Improving README formatting.
-- Writing project documentation.
-- Organizing setup instructions.
-- Improving clarity and readability.
-
-### Testing and Debugging
-
-- Explaining failing test results.
-- Suggesting possible fixes.
-- Helping identify configuration mistakes.
-- Recommending debugging steps.
-
----
-
-## 2. One example where an AI suggestion improved the project
-
-One useful AI suggestion was improving the GitHub Actions workflow by ensuring that automated tests run before deployment.
-
-### Prompt used
-
-> "Help me create a GitHub Actions workflow that installs dependencies, runs tests, builds the application, and deploys only if all steps succeed."
-
-The generated workflow provided a strong starting point that reduced setup time and ensured deployments only occur after successful validation.
-
----
-
-## 3. One example where AI was wrong or incomplete
-
-AI initially suggested a deployment configuration that omitted some required environment variables for the hosting platform.
-
-This resulted in deployment failures.
-
-The issue was identified by:
-
-- Reading the deployment logs.
-- Comparing the suggested configuration with the hosting platform documentation.
-- Updating the missing environment variables manually.
-
-This demonstrated the importance of verifying AI-generated configurations instead of accepting them without testing.
-
----
-
-## 4. Two decisions made without AI
-
-### Decision 1
-
-I decided on the repository structure and folder organization based on my understanding of the project requirements and standard development practices.
-
-I trusted my own judgment because I wanted the structure to remain consistent with previous projects and easy to maintain.
-
-### Decision 2
-
-I chose the branching strategy by using the `main` branch as the deployment branch and creating feature branches for development.
-
-I trusted my judgment because this follows common Git workflows and simplifies continuous deployment while keeping production code stable.
-
----
-
-# Lessons Learned
-
-During this project I learned:
-
-- How GitHub Actions automates software delivery.
-- The importance of automated testing before deployment.
-- How continuous deployment reduces manual work.
-- That AI is most effective as a development assistant rather than a replacement for testing and verification.
-- The value of reading logs and official documentation when troubleshooting deployment issues.
-
----
-
-# Future Improvements
-
-Potential future enhancements include:
-
-- Increased automated test coverage.
-- Code quality analysis using static analysis tools.
-- Security scanning in the CI pipeline.
-- Preview deployments for pull requests.
-- Performance monitoring after deployment.
-
----
 
 
 ## 🧪 API Validation & Live Testing (Postman)
@@ -357,3 +280,107 @@ The application maps engine anomalies to contextual HTTP status layers with clea
 | **Out of Bound Hours** | `400 Bad Request` | `"Requested slot time falls outside of the doctor's configured working hours."` |
 | **Mutating a Cancelled Record** | `400 Bad Request` | `"Cannot reschedule/cancel an appointment that is already CANCELLED."` |
 
+# AI Usage Documentation
+
+## 1. What did you use AI for across the four sections?
+
+AI was used as a development assistant throughout the project in the following ways:
+
+### Planning
+
+- Breaking down project requirements.
+- Understanding the CI/CD workflow.
+- Explaining GitHub Actions concepts.
+- Generating implementation ideas and design.
+
+### Development
+
+- Debugging build and deployment issues.
+- Explaining error messages.
+- Assisting with GitHub Actions workflow configuration.
+
+### Documentation
+
+- Improving README formatting.
+- Organizing setup instructions.
+
+### Testing and Debugging
+
+- Explaining failing test results.
+- Suggesting possible fixes.
+- Helping identify configuration mistakes.
+- Recommending debugging steps.
+
+---
+
+## 2. One example where an AI suggestion improved the project
+
+One useful AI suggestion was improving the GitHub Actions workflow by ensuring that automated tests run before deployment.
+
+### Prompt used
+
+> "Help me create a GitHub Actions workflow that installs dependencies, runs tests, builds the application, and deploys only if all steps succeed."
+
+The generated workflow provided a strong starting point that reduced setup time and ensured deployments only occur after successful validation.
+
+---
+
+## 3. One example where AI was wrong or incomplete
+
+AI initially suggested a deployment configuration that omitted some required environment variables for the hosting platform.
+
+This resulted in deployment failures.
+
+The issue was identified by:
+
+- Reading the deployment logs.
+- Comparing the suggested configuration with the hosting platform documentation.
+- Updating the missing environment variables manually.
+
+This demonstrated the importance of verifying AI-generated configurations instead of accepting them without testing.
+
+---
+
+## 4. Two decisions made without AI
+
+### Decision 1
+
+I decided on the repository structure and folder organization based on my understanding of the project requirements and standard development practices.
+
+I trusted my own judgment because I wanted the structure to remain consistent with previous projects and easy to maintain.
+
+### Decision 2
+
+I chose the branching strategy by using the `main` branch as the deployment branch and creating feature branches for development.
+
+I trusted my judgment because this follows common Git workflows and simplifies continuous deployment while keeping production code stable.
+
+---
+
+# Lessons Learned
+
+During this project I learned:
+
+- How GitHub Actions automates software delivery.
+- The importance of automated testing before deployment.
+- How continuous deployment reduces manual work.
+- That AI is most effective as a development assistant rather than a replacement for testing and verification.
+- The value of reading logs and official documentation when troubleshooting deployment issues.
+
+---
+
+# Future Improvements
+
+Potential future enhancements include:
+
+- Increased automated test coverage.
+- Code quality analysis using static analysis tools.
+- Security scanning in the CI pipeline.
+- Preview deployments for pull requests.
+- Performance monitoring after deployment.
+
+---
+
+## License
+
+MIT License
