@@ -47,18 +47,6 @@ def client(db_session):
     # set manage_lifespan=False to prevent the production lifespan from running during unit tests
     with TestClient(app, manage_lifespan=False) as test_client:
         yield test_client
-    app.dependency_overrides.clear()@pytest.fixture(scope="function")
-def client(db_session):
-    def _get_test_db():
-        try:
-            yield db_session
-        finally:
-            pass
-
-    app.dependency_overrides[get_db] = _get_test_db
-    # set manage_lifespan=False to prevent the production lifespan from running during unit tests
-    with TestClient(app, manage_lifespan=False) as test_client:
-        yield test_client
     app.dependency_overrides.clear()
 
     
