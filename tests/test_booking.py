@@ -149,15 +149,26 @@ def test_successful_reschedule(client, setup_doctor):
     assert retry_resp.status_code == 201
 
 
-def test_booking_under_one_hour_fails(client, setup_doctor):
+def test_booking_under_one_hour_fails(client, setup_doctor, monkeypatch):
     """
     Scenario 4: Trying to book a slot less than an hour in advance.
     """
-    # Build a target slot exactly 20 minutes from now (violating the 1-hour margin).
-    invalid_near_time = datetime.now(timezone.utc) + timedelta(minutes=20)
-    # Round minute value to conform to the 30-minute block rule (e.g., 0 or 30).
-    target_minute = 30 if invalid_near_time.minute >= 30 else 0
-    invalid_near_time = invalid_near_time.replace(minute=target_minute, second=0, microsecond=0)
+    # 1. Freeze the system clock to a known fixed point (e.g., 10:00 AM UTC)
+    frozen_now = datetime(2026, 7, 15, 10, 0, 0, tzinfo=timezone.utc)
+    
+    class MockDatetime:
+        @classmethod
+        def now(cls, tz=None):
+            return frozen_now
+
+    # 2. Patch the datetime objects across your application layers
+    monkeypatch.setattr("app.schema.datetime", MockDatetime)
+    monkeypatch.setattr("app.crud.datetime", MockDatetime)
+
+    # 3. Use a hardcoded future target slot exactly 30 minutes ahead (10:30 AM).
+    # This is cleanly in the future, perfectly aligned to a 30-minute block, 
+    # and strictly breaks the 1-hour margin requirement.
+    invalid_near_time = datetime(2026, 7, 15, 10, 30, 0, tzinfo=timezone.utc)
     
     payload = {
         "doctor_id": 1,
@@ -167,6 +178,6 @@ def test_booking_under_one_hour_fails(client, setup_doctor):
     
     response = client.post("/appointments", json=payload)
     
-    # Pydantic validation interceptors return HTTP 422 for schema rule breaks.
+    # Assertions will now pass predictably on every CI/CD run
     assert response.status_code == 422
     assert "at least 1 hour in advance" in response.json()["details"][0]["issue"]
