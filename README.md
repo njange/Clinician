@@ -128,13 +128,93 @@ postgresql+psycopg2://<user>:<password>@localhost:5432/clinic
 
 Create the database schema and the active-slot unique index before accepting booking traffic.
 
-### Run the API
+##  API Validation & Live Testing (Postman Verification)
 
+The transactional workflows and scheduling constraints have been rigorously validated against the live Cloud Run production gateway using Postman. To adhere to data privacy expectations (such as Kenya ODPC guidelines), all response bodies strictly exclude sensitive Personally Identifiable Information (PII) like patient phone numbers or provider emails.
+
+### 1. Dynamic Availability Discovery (`GET /doctors/{id}/availability`)
+*   **Validation Rule:** Calculates unbooked 30-minute intervals dynamically by subtracting active reservations from the doctor's configured working hours.
+*   **Behavior Check:** Slots already claimed vanish from this payload in real time.
+
+![Postman - Doctor Availability](assets/availabile_slots.png)
+
+### 2. Secure Appointment Booking (`POST /appointments`)
+*   **Validation Rule:** Enforces that a slot falls inside working hours, is perfectly aligned to a 30-minute block, is not already taken, and respects the **1-hour future cutoff bonus constraint** to prevent short-notice scheduling.
+*   **Behavior Check:** Yields an HTTP `201 Created` status with a sanitized response tracking only the scheduling tokens.
+
+![Postman - Book Appointment](assets/appointments.png)
+
+### 3. Immediate Slot Reclaim via Cancellation (`PATCH /appointments/{id}/cancel`)
+*   **Validation Rule:** Requires a structured `cancellation_reason`. It flags the record state as `CANCELLED`, rendering the 30-minute block instantly bookable by other patients. 
+*   **Idempotency Check:** Attempting to cancel an already cancelled appointment terminates early and returns a meaningful error code (`HTTP 400 Bad Request`).
+
+![Postman - Cancel Appointment](assets/cancel_appointment.png)
+
+### 4. Atomic Rescheduling Transaction (`PATCH /appointments/{id}/reschedule`)
+*   **Validation Rule:** Executes within an isolated database transaction block (`SELECT ... FOR UPDATE`). It verifies the new target slot using the identical criteria as a fresh booking, updates the old slot back to a bookable pool, and builds the new reservation atomically.
+*   **Safety Check:** If the original appointment was previously cancelled, the engine denies the patch request immediately.
+
+![Postman - Reschedule Appointment](assets/reschedule_appointments.png)
+
+### 5. Patient-Centric Timeline Agenda (`GET /patients/{id}/appointments/upcoming`)
+*   **Validation Rule:** Pulls the specific patient portfolio, applies a chronological filter matching the current UTC timeline (`slot_time >= NOW()`), and sorts the outcome strictly by ascending date order.
+
+![Postman - Patient Upcoming Appointments](assets/upcoming_appointments.png)
+
+---
+
+##  Error Validation & Structured Status Handling
+
+The application maps engine anomalies to contextual HTTP status layers with clear, predictable error schemas:
+
+| Threat Scenario | HTTP Status | Expected API Error Body Details |
+| :--- | :--- | :--- |
+| **Double Booking Race Condition** | `409 Conflict` | `"Value error, Appointment slot is already reserved."` *(Enforced by PostgreSQL unique index)* |
+| **Short-Notice Scheduling** | `422 Unprocessable` | `"Value error, Appointment slot must be scheduled at least 1 hour in advance."` |
+| **Past Datetime Payload** | `422 Unprocessable` | `"Value error, Appointment slot cannot be scheduled in the past."` |
+| **Out of Bound Hours** | `400 Bad Request` | `"Requested slot time falls outside of the doctor's configured working hours."` |
+| **Mutating a Cancelled Record** | `400 Bad Request` | `"Cannot reschedule/cancel an appointment that is already CANCELLED."` |
+
+# Clinic Appointment Booking API
+
+An optimized, high-concurrency healthcare slot scheduler built with FastAPI, SQLAlchemy, and PostgreSQL. The application features an automated, zero-downtime CI/CD engine deployed to Google Cloud Run in the Frankfurt (`europe-west3`) region.
+
+## 🚀 Live Application URL
+*   **Production API Gateway:** `https://clinic-backend-421781141134.europe-west3.run.app/`  *(Replace with your live URL)*
+*   **Interactive API Docs (Swagger):** `https://clinic-backend-421781141134.europe-west3.run.app//docs`
+
+---
+
+## 🛠️ Architecture & Deployment Choices
+
+### 🌍 Regional Infrastructure (Frankfurt)
+The application architecture is explicitly constrained to the **Frankfurt (`europe-west3`)** geographical zone. 
+*   **Data Sovereignty & Compliance:** Processing healthcare booking markers locally keeps execution within strict regional parameters.
+*   **Sub-Millisecond Performance:** Co-locating the stateless Cloud Run container and the managed Cloud SQL PostgreSQL instances within the same zone allows communication over local Unix sockets, bypassing external internet routing latency.
+
+### 🧪 Robust Test Isolation & Lifespan Architecture
+*   **Global State Separation:** Database initializations (`create_all`) are shifted safely out of the global module import loop and into an isolated FastAPI `lifespan` hook. This ensures that unit tests can safely substitute connection engines without triggering connection attempts to production.
+*   **Mocking Time-Dependent Rules:** To ensure assertions around scheduling blocks remain stable across time zones and variable network speeds, dynamic runtime checks are isolated using deterministic time offsets, eliminating CI/CD pipeline flakiness.
+
+---
+
+## 🤖 CI/CD Pipeline Workflow Runs
+
+Our automated delivery engine runs through GitHub Actions on every change committed to the `main` branch.
+
+### Pipeline Stages
+1. **Test Suite:** Initializes a clean Python runtime environment, installs dependency schemas, and executes the full validation testing matrix using `pytest`.
+2. **Authentication:** Authenticates securely against Google Cloud Platform using an IAM service account identity wrapper.
+3. **Containerization:** Compiles the application layer into a lean Docker image and publishes it to the regional **GCP Artifact Registry**.
+4. **Continuous Deployment:** Smoothly hands off the freshly published image to **Cloud Run**, establishing automated database socket proxies and secret environment variables dynamically.
+
+### How to Run Tests Locally
 ```bash
-uvicorn app.main:app --reload
-```
+# Install testing dependencies
+pip install -r requirements.txt pytest httpx
 
-When the application is implemented, interactive documentation will be available at `http://127.0.0.1:8000/docs`.
+# Execute test matrix
+python -m pytest
 
 ## Technology
 
