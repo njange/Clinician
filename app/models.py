@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Time, DateTime, ForeignKey, Index, text, Enum, Boolean
+from sqlalchemy import Column, Integer, String, Time, DateTime, ForeignKey, Index, text, Enum, Boolean, func
 from sqlalchemy.orm import relationship
 from enum import Enum as pyEnum
 from .database import Base
@@ -12,7 +12,7 @@ class AppointmentStatus(str, PyEnum):
     PENDING = "PENDING"
     CONFIRMED = "CONFIRMED"
     CANCELLED = "CANCELLED"
-    
+
 class User(Base):
     __tablename__ = "users"
 
