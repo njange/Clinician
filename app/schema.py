@@ -42,7 +42,6 @@ class AppointmentBase(BaseModel):
 
 
 class AppointmentCreate(AppointmentBase):
-    patient_id: int
 
     @field_validator("slot_time")
     @classmethod

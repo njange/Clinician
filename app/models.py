@@ -1,7 +1,31 @@
-from sqlalchemy import Column, Integer, String, Time, DateTime, ForeignKey, Index, text
+from sqlalchemy import Column, Integer, String, Time, DateTime, ForeignKey, Index, text, Enum, Boolean
 from sqlalchemy.orm import relationship
+from enum import Enum as pyEnum
 from .database import Base
 
+class UserRole(str, pyEnum):
+    PATIENT = "patient"
+    DOCTOR = "doctor"
+
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    full_name = Column(String(100), nullable=False)
+
+    email = Column(String(255), unique=True, index=True, nullable=False)
+
+    password_hash = Column(String(255), nullable=False)
+
+    role = Column(
+        Enum(UserRole),
+        nullable=False,
+        default=UserRole.PATIENT,
+    )
+
+    is_active = Column(Boolean, default=True)
+    
 class Doctor(Base):
     __tablename__ = "doctors"
 

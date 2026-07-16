@@ -12,6 +12,10 @@ from .database import engine, Base, get_db, SessionLocal
 from . import models, schema, crud
 from .seed import seed_clinic_doctors
 from contextlib import asynccontextmanager
+from app.auth.router import router as auth_router
+from app.auth.dependencies import get_current_user
+from app.models import User
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -37,7 +41,6 @@ app = FastAPI(
     description="An optimized, high-concurrency healthcare slot scheduler.",
     lifespan=lifespan  # Enforces execution of the database seeding on app startup
 )
-
 @app.get("/", tags=["Root"])
 def root():
     return {
@@ -120,22 +123,29 @@ def catch_all_exception_handler(request: Request, exc: Exception):
 # CORE RESTFUL API ROUTES
 
 @app.post(
-    "/appointments", 
-    response_model=schema.AppointmentResponse, 
-    status_code=status.HTTP_201_CREATED
+    "/appointments",
+    response_model=schema.AppointmentResponse,
+    status_code=status.HTTP_201_CREATED,
 )
-def create_appointment(payload: schema.AppointmentCreate, db: Session = Depends(get_db)):
+def create_appointment(
+    payload: schema.AppointmentCreate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),):
     """
     Books an available 30-minute slot for a doctor[cite: 1].
     """
     try:
-        return crud.book_appointment(db=db, obj_in=payload)
+        return crud.book_appointment(
+    db=db,
+    obj_in=payload,
+    patient_id=current_user.id,
+    )
     except IntegrityError:
         
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="This appointment slot was claimed by another patient concurrently[cite: 1]."
+            detail="This appointment slot was claimed by another patient concurrently."
         )
 
 
@@ -206,7 +216,7 @@ def reschedule_appointment(id: int, payload: schema.AppointmentRescheduleRequest
         db.flush()
 
         # Attempt to provision the incoming booking block
-        new_appointment = crud.book_appointment(db=db, obj_in=booking_validation_payload)
+        new_appointment = crud.book_appointment(db=db, obj_in=booking_validation_payload, patient_id=appointment.patient_id)
         return new_appointment
 
     except HTTPException as service_exc:
@@ -237,3 +247,5 @@ def get_patient_appointments(id: int, db: Session = Depends(get_db)):
         "patient_id": id,
         "upcoming_appointments": appointments
     }
+
+app.include_router(auth_router)

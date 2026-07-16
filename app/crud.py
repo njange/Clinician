@@ -65,7 +65,11 @@ def get_doctor_availability(db: Session, doctor_id: int, target_date: date) -> L
 # ATOMIC BOOKING LOGIC WITH CONCURRENCY PROTECTION
 # ==========================================
 
-def book_appointment(db: Session, obj_in: schema.AppointmentCreate) -> models.Appointment:
+def book_appointment(
+    db: Session,
+    obj_in: schema.AppointmentCreate,
+    patient_id: int,
+) -> models.Appointment:
     """
     Executes an atomic check-and-insert transaction utilizing a pessimistic row-level 
     lock on the doctor's record to fully mitigate concurrent scheduling race conditions.
@@ -104,10 +108,10 @@ def book_appointment(db: Session, obj_in: schema.AppointmentCreate) -> models.Ap
 
     # 3. Create and commit the validated appointment record securely
     db_appointment = models.Appointment(
-        doctor_id=obj_in.doctor_id,
-        patient_id=obj_in.patient_id,
-        slot_time=obj_in.slot_time,
-        status="CONFIRMED"
+    doctor_id=obj_in.doctor_id,
+    patient_id=patient_id,
+    slot_time=obj_in.slot_time,
+    status="CONFIRMED",
     )
     
     db.add(db_appointment)
