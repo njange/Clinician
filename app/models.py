@@ -8,6 +8,11 @@ class UserRole(str, pyEnum):
     PATIENT = "patient"
     DOCTOR = "doctor"
 
+class AppointmentStatus(str, PyEnum):
+    PENDING = "PENDING"
+    CONFIRMED = "CONFIRMED"
+    CANCELLED = "CANCELLED"
+    
 class User(Base):
     __tablename__ = "users"
 
