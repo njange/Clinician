@@ -1,14 +1,9 @@
-<<<<<<< HEAD
 from sqlalchemy import Column, Integer, String, Time, DateTime, ForeignKey, Index, text, Enum, Boolean
-=======
-from sqlalchemy import Boolean, Column, Integer, String, Time, DateTime, ForeignKey, Index, func, text, Enum
->>>>>>> 464c95f6f7a80b6e39187473f6ac88c9b084dd21
 from sqlalchemy.orm import relationship
 from enum import Enum as pyEnum
 from .database import Base
 from enum import Enum as PyEnum
 
-<<<<<<< HEAD
 class UserRole(str, pyEnum):
     PATIENT = "patient"
     DOCTOR = "doctor"
@@ -26,62 +21,11 @@ class User(Base):
 
     role = Column(
         Enum(UserRole),
-=======
-class UserRole(str, PyEnum):
-        PATIENT = "patient"
-        DOCTOR = "doctor"
-        ADMIN = "admin"
-        
-class AppointmentStatus(str, PyEnum):
-        PENDING = "PENDING"
-        CONFIRMED = "CONFIRMED"
-        CANCELLED = "CANCELLED"
-class User(Base):
-    __tablename__ = "users"
-    id = Column(Integer, primary_key=True, index=True)
-    full_name = Column(String(100), nullable=False)
-    email = Column(String(255), unique=True, index=True, nullable=False)
-    password_hash = Column(String(255), nullable=False)
-
-    role = Column(
-        Enum(UserRole, name="user_role"),
->>>>>>> 464c95f6f7a80b6e39187473f6ac88c9b084dd21
         nullable=False,
         default=UserRole.PATIENT,
     )
 
-<<<<<<< HEAD
     is_active = Column(Boolean, default=True)
-=======
-    is_active = Column(Boolean, default=True, nullable=False)
-
-    created_at = Column(
-        DateTime(timezone=True),
-        server_default=func.now(),
-        nullable=False,
-    )
-
-    updated_at = Column(
-        DateTime(timezone=True),
-        server_default=func.now(),
-        onupdate=func.now(),
-        nullable=False,
-    )
-
-    doctor = relationship(
-    "Doctor",
-    uselist=False,
-    back_populates="user",
-    cascade="all, delete-orphan",
-    )
-
-    patient = relationship(
-    "Patient",
-    uselist=False,
-    back_populates="user",
-    cascade="all, delete-orphan",
-    )
->>>>>>> 464c95f6f7a80b6e39187473f6ac88c9b084dd21
     
 class Doctor(Base):
     __tablename__ = "doctors"
@@ -187,3 +131,4 @@ class Appointment(Base):
     onupdate=func.now(),
     nullable=False,
     )
+
