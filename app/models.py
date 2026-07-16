@@ -1,17 +1,78 @@
-from sqlalchemy import Column, Integer, String, Time, DateTime, ForeignKey, Index, text
+from sqlalchemy import Boolean, Column, Integer, String, Time, DateTime, ForeignKey, Index, func, text, Enum
 from sqlalchemy.orm import relationship
 from .database import Base
+from enum import Enum as PyEnum
 
+class UserRole(str, PyEnum):
+        PATIENT = "patient"
+        DOCTOR = "doctor"
+        ADMIN = "admin"
+        
+class AppointmentStatus(str, PyEnum):
+        PENDING = "PENDING"
+        CONFIRMED = "CONFIRMED"
+        CANCELLED = "CANCELLED"
+class User(Base):
+    __tablename__ = "users"
+    id = Column(Integer, primary_key=True, index=True)
+    full_name = Column(String(100), nullable=False)
+    email = Column(String(255), unique=True, index=True, nullable=False)
+    password_hash = Column(String(255), nullable=False)
+
+    role = Column(
+        Enum(UserRole, name="user_role"),
+        nullable=False,
+        default=UserRole.PATIENT,
+    )
+
+    is_active = Column(Boolean, default=True, nullable=False)
+
+    created_at = Column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+
+    updated_at = Column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
+
+    doctor = relationship(
+    "Doctor",
+    uselist=False,
+    back_populates="user",
+    cascade="all, delete-orphan",
+    )
+
+    patient = relationship(
+    "Patient",
+    uselist=False,
+    back_populates="user",
+    cascade="all, delete-orphan",
+    )
+    
 class Doctor(Base):
     __tablename__ = "doctors"
 
     id = Column(Integer, primary_key=True, index=True)
-    full_name = Column(String(100), nullable=False)
+
+    user_id = Column(
+    Integer,
+    ForeignKey("users.id", ondelete="CASCADE"),
+    unique=True,
+    nullable=False,
+    )
+
+    user = relationship(
+    "User",
+    back_populates="doctor",
+    )
     
-    # Internal infrastructure fields. These are tracked internally but 
-    # must be completely stripped out in Pydantic schemas to avoid public PII exposure.
-    email = Column(String(100), nullable=False)
-    personal_phone = Column(String(20), nullable=False)
+    # infrastructure fields. 
+    phone_number = Column(String(20), nullable=False)
     
     # Working hours bounds (Stored natively as Time fields without timezones)
     work_start = Column(Time, nullable=False)
@@ -20,20 +81,45 @@ class Doctor(Base):
     # Relationship linking back to booked/cancelled appointments
     appointments = relationship("Appointment", back_populates="doctor", cascade="all, delete-orphan")
 
+class Patient(Base):
+    __tablename__ = "patients"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    user_id = Column(
+        Integer,
+        ForeignKey("users.id"),
+        unique=True,
+        nullable=False,
+    )
+
+    user = relationship(
+    "User",
+    back_populates="patient",
+    )
+
+    appointments = relationship(
+    "Appointment",
+    back_populates="patient",
+    )
 
 class Appointment(Base):
     __tablename__ = "appointments"
 
     id = Column(Integer, primary_key=True, index=True)
     doctor_id = Column(Integer, ForeignKey("doctors.id", ondelete="CASCADE"), nullable=False)
-    patient_id = Column(Integer, nullable=False, index=True)
+    patient_id = Column(Integer, ForeignKey("patients.id", ondelete="CASCADE"), nullable=False)
     
     # Crucial: Enforced explicitly as DateTime with Timezone (TIMESTAMPTZ in Postgres)
-    # This prevents varying localized engine/server time offset bugs.
+    # preventing varying localized engine/server time offset bugs.
     slot_time = Column(DateTime(timezone=True), nullable=False)
     
-    # States: "PENDING", "CONFIRMED", "CANCELLED"
-    status = Column(String(20), nullable=False, default="CONFIRMED")
+    status = Column(
+    Enum(AppointmentStatus, name="appointment_status"),
+    nullable=False,
+    default=AppointmentStatus.CONFIRMED,
+    )
+
     cancellation_reason = Column(String, nullable=True)
 
     # Relationship linking to the parent doctor entity
@@ -53,4 +139,22 @@ class Appointment(Base):
             postgresql_where=text("status != 'CANCELLED'"),
             sqlite_where=text("status != 'CANCELLED'"),
         ),
+    )
+
+    patient = relationship(
+    "Patient",
+    back_populates="appointments",
+    )
+
+    created_at = Column(
+    DateTime(timezone=True),
+    server_default=func.now(),
+    nullable=False,
+    )
+
+    updated_at = Column(
+    DateTime(timezone=True),
+    server_default=func.now(),
+    onupdate=func.now(),
+    nullable=False,
     )
