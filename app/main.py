@@ -20,7 +20,7 @@ from app.models import User
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     try:
-        # Initialize the database only when the configured backend is reachable.
+        # Initialize database on startup.
         Base.metadata.create_all(bind=engine)
 
         # Seed data is best-effort so tests and local startup do not fail when the
